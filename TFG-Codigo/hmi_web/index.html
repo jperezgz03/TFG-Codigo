@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Guante Control - Interfaz</title>
+<style>
+  :root {
+    /* Paleta Beige & Blanco */
+    --bg: #F9F7F2;          
+    --card-bg: #FFFFFF;     
+    --text-main: #4A4036;   
+    --text-light: #8C857B;  
+    --accent: #D4B483;      
+    
+    /* Botones */
+    --btn-primary: #6D5E50; 
+    --btn-text: #FFFFFF;
+    --btn-action: #8DA399;  
+    --btn-danger: #D68C8C;  
+    --btn-success: #7FB069; 
+
+    /* Status */
+    --dot-off: #BBB;
+    --dot-on: #7FB069;
+    
+    /* Ayuda */
+    --help-bg: #FFF8E1;
+    --help-border: #FFE082;
+    --help-text: #5D4037;
+  }
+
+  * { box-sizing: border-box; }
+  body { 
+    margin: 0; 
+    background: var(--bg); 
+    color: var(--text-main); 
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* --- Header --- */
+  header { 
+    background: var(--card-bg);
+    padding: 15px 20px; 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: 80px;
+  }
+
+  .left-area { display: flex; align-items: center; z-index: 2; }
+  .center-area { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; width: 100%; pointer-events: none; }
+  .right-area { display: flex; gap: 8px; align-items: center; z-index: 2; }
+
+  h1 { font-size: 22px; margin: 0; font-weight: 800; color: var(--text-main); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+
+  .status-badge {
+    display: flex; align-items: center; gap: 8px; background: #F4F4F0;
+    padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    color: var(--text-light); border: 1px solid #EBE5DB;
+  }
+  
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dot-off); display: inline-block; box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); transition: background 0.3s; }
+  .status-dot.on { background: var(--dot-on); box-shadow: 0 0 6px var(--dot-on); }
+
+  @media (max-width: 600px) {
+    input#namePrefix { display: none; }
+    h1 { font-size: 16px; } 
+    .status-badge span { display: none; } 
+    .status-badge { gap: 0; padding: 8px; border-radius: 50%; } 
+  }
+  
+  input#namePrefix {
+    border: 1px solid #E0D8CC; background: #FFF; padding: 10px; border-radius: 8px;
+    color: var(--text-main); font-weight: 600; font-size: 14px; width: 100px; outline: none; text-align: center;
+  }
+  
+  /* --- Botones --- */
+  button { 
+    background: var(--btn-primary); color: var(--btn-text); border: none; padding: 10px 16px; 
+    border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+  button:hover { filter: brightness(105%); transform: translateY(-1px); }
+  button:active { transform: translateY(1px); box-shadow: none; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; filter: grayscale(100%); }
+
+  button.connect { background: var(--btn-action); }
+  button.disconnect { background: #FFF; color: var(--btn-danger); border: 2px solid var(--btn-danger); }
+  button.secondary { background: #FFF; color: var(--text-main); border: 2px solid #E0D8CC; }
+  button.warn { background: #FFF; color: var(--btn-danger); border: 2px solid var(--btn-danger); }
+  button.ghost { background: transparent; color: var(--text-light); border: 1px dashed var(--text-light); padding: 6px 12px; font-size: 12px;}
+  button.active-profile { background: var(--btn-primary); color: #FFF; border: none; }
+  button.action-btn { background: var(--accent); color: var(--text-main); font-size: 15px; font-weight: 700; border: 2px solid #C4A473; }
+
+  /* --- Tabs --- */
+  .tabs-container { display: flex; justify-content: center; margin: 20px 0; padding: 0 16px; }
+  .tabs { background: #EBE5DB; padding: 4px; border-radius: 12px; display: flex; gap: 4px; }
+  .tab { background: transparent; color: var(--text-light); padding: 10px 24px; border-radius: 10px; cursor: pointer; border: none; font-size: 15px; box-shadow: none; }
+  .tab.active { background: #FFF; color: var(--text-main); box-shadow: 0 2px 6px rgba(0,0,0,0.05); font-weight: 700; }
+
+  /* --- Layout --- */
+  main { padding: 0 16px 40px 16px; max-width: 900px; margin: 0 auto; display: grid; gap: 20px; }
+
+  .card { background: var(--card-bg); border-radius: 16px; padding: 20px; box-shadow: 0 4px 16px rgba(74, 64, 54, 0.03); border: 1px solid #F0EBE0; }
+  .title { font-size: 17px; font-weight: 700; margin: 0 0 12px 0; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; }
+  .small { font-size: 13px; color: var(--text-light); margin-top: 4px;}
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+
+  /* --- Gauges --- */
+  label { display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-light); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .gauge-container { background: #F0F0F0; height: 20px; border-radius: 10px; overflow: hidden; position: relative; }
+  .gauge-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #8DA399, #7FB069); transition: width 0.1s ease-out; border-radius: 10px; }
+  .val-big { font-size: 32px; font-weight: 800; color: var(--text-main); line-height: 1.1; }
+  .unit { font-size: 14px; font-weight: 500; color: var(--text-light); margin-left: 2px; }
+
+  /* --- Calibración Centrada --- */
+  .calib-display { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; margin-bottom: 20px; }
+  .calib-value-big { font-size: 64px; font-weight: 800; color: var(--btn-primary); line-height: 1; margin: 10px 0; }
+  .calib-unit { font-size: 32px; color: var(--text-light); font-weight: 400; }
+  .calib-saved-box { background: #F4F4F0; border: 1px solid #E0D8CC; border-radius: 12px; padding: 12px 20px; width: 100%; margin-top: 10px; }
+  .calib-saved-vals { font-family: 'Courier New', monospace; font-weight: 600; color: var(--text-main); font-size: 15px; }
+
+  /* --- Logs --- */
+  .log { height: 100px; overflow: auto; background: #F8F8F8; padding: 10px; border-radius: 8px; font-size: 12px; color: #666; font-family: monospace; border: 1px solid #EEE; }
+
+  /* --- Calibración Botones --- */
+  .calib-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .btn-full { grid-column: 1 / -1; }
+
+  .finish-card { border: 2px solid var(--btn-success); background: #F4FAF0; text-align: center; }
+  #btnFinish { background: var(--btn-success); color: #FFF; font-size: 18px; padding: 16px; width: 100%; margin-top: 10px; box-shadow: 0 4px 10px rgba(127, 176, 105, 0.25); }
+
+  /* --- Ayuda --- */
+  .help-card { background: var(--help-bg); border: 1px solid var(--help-border); cursor: pointer; transition: all 0.2s; }
+  .help-card:hover { transform: translateY(-2px); }
+  .help-content { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.1); display: none; }
+  .help-content.show { display: block; animation: fadeIn 0.3s; }
+  .help-list li { margin-bottom: 8px; font-size: 14px; color: var(--help-text); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .hidden { display: none !important; }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="left-area">
+    <div class="status-badge">
+      <span id="dot" class="status-dot"></span>
+      <span id="statusText">Desconectado</span>
+    </div>
+  </div>
+  <div class="center-area">
+    <h1>Guante Control</h1>
+  </div>
+  <div class="right-area">
+    <input id="namePrefix" value="Guante" placeholder="Nombre" />
+    <button id="btnConnect" class="connect">Conectar</button>
+    <button id="btnDisconnect" class="disconnect" disabled>Salir</button>
+  </div>
+</header>
+
+<div class="tabs-container">
+  <div class="tabs">
+    <button id="tabLecturas" class="tab active">Lecturas</button>
+    <button id="tabCalib" class="tab">Calibración</button>
+  </div>
+</div>
+
+<main>
+  <section id="viewLecturas">
+    
+    <div class="card">
+      <div class="title">✋ Flexión (Mano)</div>
+      <div class="grid">
+        <div>
+          <label>Ángulo de Flexión</label>
+          <div class="val-big"><span id="valFlexDeg">0.0</span><span class="unit">°</span></div>
+          <div class="small">Posición real del sensor</div>
+        </div>
+        <div>
+          <label>Nivel de Cierre (Potencia)</label>
+          <div class="gauge-container"><div id="barFlex" class="gauge-bar"></div></div>
+          <div class="small" style="margin-top: 8px;">Porcentaje enviado: <b><span id="valPctFlex">0</span>%</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title">🔄 Giro (Muñeca)</div>
+      <div class="grid">
+        <div>
+          <label>Ángulo de Giro</label>
+          <div class="val-big"><span id="valWrist">0.00</span><span class="unit">°</span></div>
+          <div class="small">Posición Relativa</div>
+        </div>
+        <div>
+          <label>Estado Normalizado</label>
+          <div class="val-big"><span id="valWristPct">50</span><span class="unit">%</span></div>
+          <div class="small">0=Izq · 50=Recto · 100=Der</div>
+        </div>
+      </div>
+      <div style="margin-top: 16px; text-align: right;">
+        <button id="goCalib" class="ghost">Ir a Calibración →</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title">Registro de Eventos</div>
+      <div id="log" class="log"></div>
+    </div>
+  </section>
+
+  <section id="viewCalib" class="hidden">
+    
+    <div class="card help-card" id="toggleHelp">
+      <div class="title" style="margin:0; color:var(--help-text);">
+        <span>💡 Guía Rápida: Cómo Calibrar</span>
+        <span id="helpArrow">▼</span>
+      </div>
+      <div class="help-content" id="helpContent">
+        <ul class="help-list" style="padding-left:20px; margin:0;">
+          <li><b>ℹ️ El valor grande muestra los GRADOS del sensor.</b></li>
+          <li style="margin-top:8px"><b>1. Mano (Velocidad):</b>
+            <br>✋ Abre la mano relajada ➡️ Pulsa "Mano Abierta" (Debería marcar 0%).
+            <br>✊ Cierra el puño fuerte ➡️ Pulsa "Mano Cerrada" (Debería marcar 100%).
+          </li>
+          <li style="margin-top:8px"><b>2. Muñeca (Giro):</b>
+            <br>👇 Mano RECTA (Natural) ➡️ Pulsa "Guardar CENTRO".
+            <br>👈 Gira MAX Izquierda ➡️ Pulsa "Max. IZQ".
+            <br>👉 Gira MAX Derecha ➡️ Pulsa "Max. DER".
+          </li>
+          <li style="margin-top:8px"><b>3. Finalizar:</b>
+            <br>✅ Pulsa el botón VERDE abajo del todo.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title">🧠 Perfil Médico (Filtros)</div>
+      <div class="calib-actions" style="grid-template-columns: 1fr 1fr 1fr;">
+        <button id="btnPatNone" class="active-profile">Ninguno</button>
+        <button id="btnPatPark" class="secondary">Parkinson</button>
+        <button id="btnPatTour" class="secondary">Tourette</button>
+      </div>
+      <button id="btnConfirmPat" class="action-btn btn-full" style="margin-top: 12px; padding: 12px;">✅ Aplicar Perfil Seleccionado</button>
+      <div class="small" style="margin-top:10px; text-align:center; color:var(--text-light);">
+        Selecciona un perfil arriba y pulsa "Aplicar" para enviarlo al guante.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title"> 🚀 Calibrar Aceleración</div>
+      
+      <div class="calib-display">
+        <label>Ángulo de Flexión Actual</label>
+        
+        <div class="calib-value-big"><span id="valDegFlex2">0.0</span><span class="calib-unit">°</span></div>
+        <div class="small" style="color:var(--text-light); margin-bottom:10px;">Ajusta los límites según el ángulo de tu mano</div>
+        
+        <div class="calib-saved-box">
+          <label style="margin-bottom:4px;">Refs. Guardadas (Grados)</label>
+          <div class="calib-saved-vals">Abierta: <span id="minVal">—</span>° | Cerrada: <span id="maxVal">—</span>°</div>
+        </div>
+      </div>
+      
+      <div class="calib-actions">
+        <button id="btnOpen" class="secondary">1) Asignar 0% (Abierta)</button>
+        <button id="btnClosed" class="secondary">2) Asignar 100% (Cerrada)</button>
+        <button id="btnReset" class="warn btn-full">Reiniciar Calibración</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title">🔄️ Ajustar Volante (Giro)</div>
+      
+      <div class="calib-display">
+        <label>Inclinación Actual</label>
+        <div class="calib-value-big"><span id="valWrist2">0.00</span><span class="calib-unit">°</span></div>
+        
+        <div class="calib-saved-box">
+          <label style="margin-bottom:4px;">Ángulos Guardados</label>
+          <div class="calib-saved-vals"> Izq: <span id="rotMin2">—</span>° <b>|</b> Centro: <span id="rotZero2">—</span>°<b> | </b>Der: <span id="rotMax2">—</span>°</div>
+        </div>
+      </div>
+
+      <div class="calib-actions">
+        <button id="btnRotReset" class="warn btn-full">1º Reiniciar</button>
+        <button id="btnRotZero" class="secondary btn-full">2º Guardar CENTRO (Neutro)</button>
+        <button id="btnRotCCW" class="secondary">3º Max. IZQ</button>
+        <button id="btnRotCW" class="secondary">4º Max. DER</button>
+      </div>
+    </div>
+
+    <div class="card finish-card">
+      <div class="title" style="justify-content:center; color: var(--btn-success);">🚀 Paso Final</div>
+      <p>Cuando el porcentaje funcione bien (0% abierta, 100% cerrada),<br>pulsa aquí para empezar.</p>
+      <button id="btnFinish">✅ TERMINAR Y CONDUCIR</button>
+    </div>
+
+  </section>
+</main>
+
+<script>
+// ===== LÓGICA DE PROGRAMACIÓN =====
+const el = id => document.getElementById(id);
+const log = s => { const d=el('log'); d.textContent = `> ${s}\n` + d.textContent; }
+function clamp(v,min,max){ return v<min?min:(v>max?max:v); }
+
+// Utilidad de retardo
+const delay = ms => new Promise(res => setTimeout(res, ms)); 
+
+// Tabs
+function showLecturas(){ el('tabLecturas').classList.add('active'); el('tabCalib').classList.remove('active'); el('viewLecturas').classList.remove('hidden'); el('viewCalib').classList.add('hidden'); }
+function showCalib(){ el('tabCalib').classList.add('active'); el('tabLecturas').classList.remove('active'); el('viewCalib').classList.remove('hidden'); el('viewLecturas').classList.add('hidden'); }
+el('tabLecturas').addEventListener('click', showLecturas);
+el('tabCalib').addEventListener('click', showCalib);
+el('goCalib').addEventListener('click', showCalib);
+
+// Toggle Ayuda
+el('toggleHelp').addEventListener('click', () => {
+  const content = el('helpContent');
+  const arrow = el('helpArrow');
+  if(content.classList.contains('show')){
+    content.classList.remove('show');
+    arrow.textContent = '▼';
+  } else {
+    content.classList.add('show');
+    arrow.textContent = '▲';
+  }
+});
+
+// UUIDs
+const SVC_UUID   = '6e400001-b5a3-f393-e0a9-e50e24dcca9f';
+const RAW_UUID   = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const NORM_UUID  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const ANG_UUID   = '6e400004-b5a3-f393-e0a9-e50e24dcca9e';
+const CMD_UUID   = '6e400005-b5a3-f393-e0a9-e50e24dcca9e';
+const CAL_UUID   = '6e400006-b5a3-f393-e0a9-e50e24dcca9e';
+const ACK_UUID   = '6e40000b-b5a3-f393-e0a9-e50e24dcca9e';
+const ROT_UUID   = '6e400007-b5a3-f393-e0a9-e50e24dcca9e';
+const ROTN_UUID  = '6e400008-b5a3-f393-e0a9-e50e24dcca9e';
+const RCAL_UUID  = '6e400009-b5a3-f393-e0a9-e50e24dcca9e';
+
+// Estado
+let device, server, service;
+let chRaw, chNorm, chAng, chCmd, chCal;
+let chRot, chRotN, chRcal, chAck;
+let selectedPathology = 'PAT_NONE';
+let ackSupported = false;
+let cmdSeq = 0;
+const ackWaiters = new Map();
+let commandBusy = false;
+
+const commandButtonIds = ['btnOpen','btnClosed','btnReset','btnRotZero','btnRotCCW','btnRotCW','btnRotReset','btnFinish','btnConfirmPat'];
+const profileButtonIds = ['btnPatNone','btnPatPark','btnPatTour'];
+
+function refreshButtons() {
+  const on = !!(device && device.gatt && device.gatt.connected && chCmd);
+  commandButtonIds.forEach(id => { const b = el(id); if (b) b.disabled = !on || commandBusy; });
+  profileButtonIds.forEach(id => { const b = el(id); if (b) b.disabled = !on || commandBusy; });
+}
+
+const setConnected = (on, name='—')=>{
+  el('dot').classList.toggle('on', on);
+  const statusText = el('statusText');
+  if(statusText) {
+    statusText.textContent = on ? 'Conectado' : 'Desconectado';
+    statusText.style.color = on ? 'var(--btn-success)' : 'var(--text-light)';
+  }
+  el('btnConnect').disabled = on;
+  el('btnConnect').textContent = on ? 'Conectado' : 'Conectar';
+  el('btnDisconnect').disabled = !on;
+  refreshButtons();
+};
+
+
+// Conexión
+async function connect(){
+  try{
+    const prefix = el('namePrefix').value.trim() || 'Guante';
+    log('Buscando dispositivo...');
+    device = await navigator.bluetooth.requestDevice({ filters:[{ namePrefix: prefix }], optionalServices:[SVC_UUID] });
+    device.addEventListener('gattserverdisconnected', onDisconnect);
+    server = await device.gatt.connect();
+    service = await server.getPrimaryService(SVC_UUID);
+
+    chNorm = await service.getCharacteristic(NORM_UUID);
+    chAng  = await service.getCharacteristic(ANG_UUID);
+    chCmd  = await service.getCharacteristic(CMD_UUID);
+    chCal  = await service.getCharacteristic(CAL_UUID);
+    chRot  = await service.getCharacteristic(ROT_UUID);
+    chRotN = await service.getCharacteristic(ROTN_UUID);
+    chRcal = await service.getCharacteristic(RCAL_UUID);
+
+    // ACK opcional: confirma que Arduino ha procesado realmente cada comando.
+    // Si el Arduino todavía no tiene esta característica, la web seguirá funcionando
+    // con solo escritura BLE, pero sin confirmación.
+    try {
+      chAck = await service.getCharacteristic(ACK_UUID);
+      await chAck.startNotifications();
+      chAck.addEventListener('characteristicvaluechanged', onAck);
+      ackSupported = true;
+      log('ACK BLE activo');
+    } catch(e) {
+      chAck = null;
+      ackSupported = false;
+      log('Aviso: ACK no disponible, usando modo compatible');
+    }
+
+    setConnected(true);
+    log('Vinculado. Suscribiendo a sensores...');
+
+    await chNorm.startNotifications();
+    chNorm.addEventListener('characteristicvaluechanged', e=>{
+      const pct = e.target.value.getUint8(0);
+      el('valPctFlex').textContent = pct;
+      el('barFlex').style.width = `${clamp(pct,0,100)}%`;
+    });
+    await delay(100);
+
+    await chAng.startNotifications();
+    chAng.addEventListener('characteristicvaluechanged', e=>{
+      const deg = e.target.value.getFloat32(0, true);
+      el('valFlexDeg').textContent = deg.toFixed(1);
+      el('valDegFlex2').textContent = deg.toFixed(1);
+    });
+    await delay(100);
+    
+    await chCal.startNotifications();
+    chCal.addEventListener('characteristicvaluechanged', e => {
+      const min = e.target.value.getFloat32(0, true);
+      const max = e.target.value.getFloat32(4, true);
+      el('minVal').textContent = min.toFixed(1); 
+      el('maxVal').textContent = max.toFixed(1);
+    });
+    await delay(100);
+    
+    try {
+      const dvCal = await chCal.readValue();
+      el('minVal').textContent = dvCal.getFloat32(0, true).toFixed(1);
+      el('maxVal').textContent = dvCal.getFloat32(4, true).toFixed(1);
+    } catch(e) { log('Aviso: No se pudo leer CAL inicial'); }
+    await delay(100);
+
+    await chRot.startNotifications();
+    chRot.addEventListener('characteristicvaluechanged', e=>{
+      const deg = e.target.value.getFloat32(0, true);
+      el('valWrist').textContent = deg.toFixed(2);
+      el('valWrist2').textContent = deg.toFixed(2);
+    });
+    await delay(100);
+
+    await chRotN.startNotifications();
+    chRotN.addEventListener('characteristicvaluechanged', e=>{
+      const pct = e.target.value.getUint8(0);
+      el('valWristPct').textContent = pct;
+    });
+    await delay(100);
+
+    await chRcal.startNotifications();
+    chRcal.addEventListener('characteristicvaluechanged', e => {
+      const z = (e.target.value.getInt16(0,false))/10;
+      const mn = (e.target.value.getInt16(2,false))/10;
+      const mx = (e.target.value.getInt16(4,false))/10;
+      el('rotZero2').textContent = z.toFixed(1);
+      el('rotMin2').textContent  = mn.toFixed(1);
+      el('rotMax2').textContent  = mx.toFixed(1);
+    });
+    await delay(100);
+    
+    try {
+      const dvR = await chRcal.readValue();
+      el('rotZero2').textContent = (dvR.getInt16(0,false)/10).toFixed(1);
+      el('rotMin2').textContent  = (dvR.getInt16(2,false)/10).toFixed(1);
+      el('rotMax2').textContent  = (dvR.getInt16(4,false)/10).toFixed(1);
+    } catch(e) { log('Aviso: No se pudo leer RCAL inicial'); }
+
+    log('¡Conexión completada y estable!');
+  }catch(err){
+    log('Error de conexión: '+err.message);
+    if (!device || !device.gatt.connected) {
+      setConnected(false);
+    }
+  }
+}
+
+function rejectPendingAcks(reason='desconectado') {
+  for (const [seq, waiter] of ackWaiters.entries()) {
+    clearTimeout(waiter.timer);
+    waiter.reject(new Error(reason));
+  }
+  ackWaiters.clear();
+}
+
+function onDisconnect(){
+  rejectPendingAcks('desconectado');
+  commandBusy = false;
+  chCmd = chAck = null;
+  ackSupported = false;
+  setConnected(false);
+  log('Desconectado del guante');
+}
+async function disconnect(){ try{ device && device.gatt && device.gatt.connected && device.gatt.disconnect(); }catch(_){} }
+
+// =====================================================================
+// ENVÍO BLE ROBUSTO: 1 comando cada vez, sin cola infinita
+// =====================================================================
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function isBleReady() {
+  return !!(device && device.gatt && device.gatt.connected && chCmd);
+}
+
+function setCommandBusy(on) {
+  commandBusy = on;
+  refreshButtons();
+}
+
+function onAck(e) {
+  const bytes = new Uint8Array(e.target.value.buffer);
+  const txt = decoder.decode(bytes).replace(/\0/g, '').trim();
+  const parts = txt.split('|');
+  const type = parts[0];
+  const seq = parts[1];
+
+  if (!seq) {
+    log('ACK recibido: ' + txt);
+    return;
+  }
+
+  const waiter = ackWaiters.get(seq);
+  if (!waiter) return;
+
+  clearTimeout(waiter.timer);
+  ackWaiters.delete(seq);
+
+  if (type === 'ACK') waiter.resolve(txt);
+  else waiter.reject(new Error(txt));
+}
+
+function waitForAck(seq, timeoutMs = 2500) {
+  if (!ackSupported) return delay(250);
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ackWaiters.delete(seq);
+      reject(new Error('sin ACK'));
+    }, timeoutMs);
+    ackWaiters.set(seq, { resolve, reject, timer });
+  });
+}
+
+async function writeBleCommand(payload) {
+  const data = encoder.encode(payload);
+
+  // Con el firmware v2 la característica permite WriteWithoutResponse.
+  // Es más estable en Chrome porque el ACK lo gestionamos nosotros por otra característica.
+  if (chCmd.properties && chCmd.properties.writeWithoutResponse && chCmd.writeValueWithoutResponse) {
+    await chCmd.writeValueWithoutResponse(data);
+  } else if (chCmd.writeValueWithResponse) {
+    await chCmd.writeValueWithResponse(data);
+  } else {
+    await chCmd.writeValue(data);
+  }
+}
+
+async function sendCmd(txt) {
+  if (!isBleReady()) {
+    log('No conectado: no se envía ' + txt);
+    return false;
+  }
+
+  if (commandBusy) {
+    log('Espera: comando anterior todavía en curso');
+    return false;
+  }
+
+  setCommandBusy(true);
+  const seq = String((cmdSeq = (cmdSeq + 1) % 9000) || 1);
+  const payload = `${txt}|${seq}`;
+
+  try {
+    log('Enviando: ' + txt);
+
+    const ackPromise = waitForAck(seq, txt === 'CAL_DONE' ? 4000 : 2500);
+    await writeBleCommand(payload);
+
+    try {
+      await ackPromise;
+      log('CMD confirmado: ' + txt);
+      return true;
+    } catch (ackErr) {
+      log('Enviado pero sin confirmación: ' + txt);
+      return false;
+    }
+  } catch (e) {
+    const waiter = ackWaiters.get(seq);
+    if (waiter) {
+      clearTimeout(waiter.timer);
+      ackWaiters.delete(seq);
+    }
+
+    log('Error BLE enviando ' + txt + ': ' + e.message);
+
+    // Si Chrome deja el GATT bloqueado, es mejor cortar limpio que dejar botones colgados.
+    try { if (device && device.gatt && device.gatt.connected) device.gatt.disconnect(); } catch(_) {}
+    return false;
+  } finally {
+    setTimeout(() => setCommandBusy(false), 250);
+  }
+}
+// =====================================================================
+
+// Eventos Botones Básicos
+el('btnConnect').addEventListener('click', connect);
+el('btnDisconnect').addEventListener('click', disconnect);
+el('btnOpen').addEventListener('click', ()=>sendCmd('SET_OPEN'));
+el('btnClosed').addEventListener('click', ()=>sendCmd('SET_CLOSED'));
+el('btnReset').addEventListener('click', ()=>sendCmd('RESET_CAL'));
+el('btnRotZero').addEventListener('click', ()=>sendCmd('ROT_ZERO'));
+el('btnRotCCW').addEventListener('click', ()=>sendCmd('ROT_MIN'));
+el('btnRotCW').addEventListener('click', ()=>sendCmd('ROT_MAX'));
+el('btnRotReset').addEventListener('click', ()=>sendCmd('ROT_RESET'));
+
+// Eventos Perfiles Médicos
+function setProfileBtn(activeBtn) {
+  ['btnPatNone', 'btnPatPark', 'btnPatTour'].forEach(id => {
+    el(id).className = (id === activeBtn) ? 'active-profile' : 'secondary';
+  });
+}
+el('btnPatNone').addEventListener('click', () => { selectedPathology = 'PAT_NONE'; setProfileBtn('btnPatNone'); });
+el('btnPatPark').addEventListener('click', () => { selectedPathology = 'PAT_PARK'; setProfileBtn('btnPatPark'); });
+el('btnPatTour').addEventListener('click', () => { selectedPathology = 'PAT_TOUR'; setProfileBtn('btnPatTour'); });
+
+el('btnConfirmPat').addEventListener('click', () => {
+  sendCmd(selectedPathology);
+});
+
+el('btnFinish').addEventListener('click', async () => {
+  if(!confirm("¿Activar silla y desconectar?")) return;
+  try {
+    await sendCmd('CAL_DONE');
+    log('Calibración guardada. Desconectando...');
+    // Dejamos margen para que Arduino termine de guardar en Flash sin cortar BLE.
+    setTimeout(() => disconnect(), 1500);
+  } catch(e) {
+    log('Error al finalizar: ' + e.message);
+  }
+});
+
+if(!('bluetooth' in navigator)){ log('Navegador no soporta Web Bluetooth'); el('btnConnect').disabled=true; }
+
+setConnected(false);
+</script>
+</body>
+</html>
