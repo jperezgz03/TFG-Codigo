@@ -6,25 +6,29 @@
 <title>Guante Control - Interfaz</title>
 <style>
   :root {
-    /* Paleta Beige & Blanco */
+    /*
+     Variables globales de estilo.
+     Se centralizan colores y estados visuales para que toda la interfaz mantenga
+     una apariencia uniforme y sea fácil modificarla sin tocar cada elemento.
+  */
     --bg: #F9F7F2;          
     --card-bg: #FFFFFF;     
     --text-main: #4A4036;   
     --text-light: #8C857B;  
     --accent: #D4B483;      
     
-    /* Botones */
+    /* Colores asociados a botones de acción, aviso, desconexión y confirmación. */
     --btn-primary: #6D5E50; 
     --btn-text: #FFFFFF;
     --btn-action: #8DA399;  
     --btn-danger: #D68C8C;  
     --btn-success: #7FB069; 
 
-    /* Status */
+    /* Colores del indicador de estado BLE: apagado/desconectado o conectado. */
     --dot-off: #BBB;
     --dot-on: #7FB069;
     
-    /* Ayuda */
+    /* Colores del bloque de ayuda usado durante la calibración del usuario. */
     --help-bg: #FFF8E1;
     --help-border: #FFE082;
     --help-text: #5D4037;
@@ -40,7 +44,11 @@
     line-height: 1.5;
   }
 
-  /* --- Header --- */
+  /*
+     Cabecera fija de la HMI.
+     Muestra el estado de conexión BLE, el título de la aplicación y los controles
+     principales para conectar o desconectar el guante.
+  */
   header { 
     background: var(--card-bg);
     padding: 15px 20px; 
@@ -81,7 +89,11 @@
     color: var(--text-main); font-weight: 600; font-size: 14px; width: 100px; outline: none; text-align: center;
   }
   
-  /* --- Botones --- */
+  /*
+     Estilo común de botones.
+     Los modificadores (.connect, .disconnect, .warn, etc.) diferencian acciones
+     normales, acciones críticas y selección de perfiles médicos.
+  */
   button { 
     background: var(--btn-primary); color: var(--btn-text); border: none; padding: 10px 16px; 
     border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s ease;
@@ -99,13 +111,21 @@
   button.active-profile { background: var(--btn-primary); color: #FFF; border: none; }
   button.action-btn { background: var(--accent); color: var(--text-main); font-size: 15px; font-weight: 700; border: 2px solid #C4A473; }
 
-  /* --- Tabs --- */
+  /*
+     Navegación entre vistas.
+     La aplicación es de una sola página: no cambia de URL, solo muestra u oculta
+     la vista de lecturas o la vista de calibración.
+  */
   .tabs-container { display: flex; justify-content: center; margin: 20px 0; padding: 0 16px; }
   .tabs { background: #EBE5DB; padding: 4px; border-radius: 12px; display: flex; gap: 4px; }
   .tab { background: transparent; color: var(--text-light); padding: 10px 24px; border-radius: 10px; cursor: pointer; border: none; font-size: 15px; box-shadow: none; }
   .tab.active { background: #FFF; color: var(--text-main); box-shadow: 0 2px 6px rgba(0,0,0,0.05); font-weight: 700; }
 
-  /* --- Layout --- */
+  /*
+     Estructura principal de tarjetas.
+     Se limita el ancho máximo para mantener una lectura cómoda tanto en PC como
+     en tablet durante el proceso de calibración.
+  */
   main { padding: 0 16px 40px 16px; max-width: 900px; margin: 0 auto; display: grid; gap: 20px; }
 
   .card { background: var(--card-bg); border-radius: 16px; padding: 20px; box-shadow: 0 4px 16px rgba(74, 64, 54, 0.03); border: 1px solid #F0EBE0; }
@@ -113,31 +133,43 @@
   .small { font-size: 13px; color: var(--text-light); margin-top: 4px;}
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 
-  /* --- Gauges --- */
+  /*
+     Indicadores visuales de telemetría.
+     La barra de flexión representa el porcentaje normalizado que el firmware
+     calcula a partir del sensor del dedo.
+  */
   label { display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-light); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
   .gauge-container { background: #F0F0F0; height: 20px; border-radius: 10px; overflow: hidden; position: relative; }
   .gauge-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #8DA399, #7FB069); transition: width 0.1s ease-out; border-radius: 10px; }
   .val-big { font-size: 32px; font-weight: 800; color: var(--text-main); line-height: 1.1; }
   .unit { font-size: 14px; font-weight: 500; color: var(--text-light); margin-left: 2px; }
 
-  /* --- Calibración Centrada --- */
+  /*
+     Formato de los valores grandes de calibración.
+     Se prioriza que el terapeuta o evaluador vea claramente el ángulo actual
+     antes de guardar un nuevo umbral.
+  */
   .calib-display { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; margin-bottom: 20px; }
   .calib-value-big { font-size: 64px; font-weight: 800; color: var(--btn-primary); line-height: 1; margin: 10px 0; }
   .calib-unit { font-size: 32px; color: var(--text-light); font-weight: 400; }
   .calib-saved-box { background: #F4F4F0; border: 1px solid #E0D8CC; border-radius: 12px; padding: 12px 20px; width: 100%; margin-top: 10px; }
   .calib-saved-vals { font-family: 'Courier New', monospace; font-weight: 600; color: var(--text-main); font-size: 15px; }
 
-  /* --- Logs --- */
+  /* Registro local de eventos de la HMI: conexión, errores BLE y confirmación de comandos. */
   .log { height: 100px; overflow: auto; background: #F8F8F8; padding: 10px; border-radius: 8px; font-size: 12px; color: #666; font-family: monospace; border: 1px solid #EEE; }
 
-  /* --- Calibración Botones --- */
+  /* Disposición de botones de calibración en rejilla para seguir un flujo guiado. */
   .calib-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
   .btn-full { grid-column: 1 / -1; }
 
   .finish-card { border: 2px solid var(--btn-success); background: #F4FAF0; text-align: center; }
   #btnFinish { background: var(--btn-success); color: #FFF; font-size: 18px; padding: 16px; width: 100%; margin-top: 10px; box-shadow: 0 4px 10px rgba(127, 176, 105, 0.25); }
 
-  /* --- Ayuda --- */
+  /*
+     Tarjeta desplegable de ayuda.
+     Resume el procedimiento de calibración para que la interfaz pueda usarse sin
+     consultar el código o la memoria del proyecto.
+  */
   .help-card { background: var(--help-bg); border: 1px solid var(--help-border); cursor: pointer; transition: all 0.2s; }
   .help-card:hover { transform: translateY(-2px); }
   .help-content { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.1); display: none; }
@@ -151,6 +183,10 @@
 </head>
 <body>
 
+<!--
+  Cabecera de la interfaz.
+  Permite comprobar si el guante está conectado y lanzar o cerrar la conexión BLE.
+-->
 <header>
   <div class="left-area">
     <div class="status-badge">
@@ -168,6 +204,10 @@
   </div>
 </header>
 
+<!--
+  Selector de vistas.
+  "Lecturas" se usa para monitorización; "Calibración" para ajustar umbrales y perfiles.
+-->
 <div class="tabs-container">
   <div class="tabs">
     <button id="tabLecturas" class="tab active">Lecturas</button>
@@ -176,6 +216,7 @@
 </div>
 
 <main>
+  <!-- Vista de telemetría: muestra flexión, giro y eventos de comunicación en tiempo real. -->
   <section id="viewLecturas">
     
     <div class="card">
@@ -219,6 +260,7 @@
     </div>
   </section>
 
+  <!-- Vista de calibración: permite guardar límites de mano, límites de muñeca y perfil médico. -->
   <section id="viewCalib" class="hidden">
     
     <div class="card help-card" id="toggleHelp">
@@ -311,22 +353,24 @@
 </main>
 
 <script>
-// ===== LÓGICA DE PROGRAMACIÓN =====
+// ===================== LÓGICA DE LA INTERFAZ WEB =====================
+// Esta parte gestiona la conexión Web Bluetooth, actualiza la telemetría en
+// pantalla y envía comandos de calibración al firmware del guante.
 const el = id => document.getElementById(id);
 const log = s => { const d=el('log'); d.textContent = `> ${s}\n` + d.textContent; }
 function clamp(v,min,max){ return v<min?min:(v>max?max:v); }
 
-// Utilidad de retardo
+// Pequeña espera entre suscripciones BLE. Ayuda a que Chrome no sature la pila GATT.
 const delay = ms => new Promise(res => setTimeout(res, ms)); 
 
-// Tabs
+// Cambio de pestañas: se alterna entre monitorización en tiempo real y calibración.
 function showLecturas(){ el('tabLecturas').classList.add('active'); el('tabCalib').classList.remove('active'); el('viewLecturas').classList.remove('hidden'); el('viewCalib').classList.add('hidden'); }
 function showCalib(){ el('tabCalib').classList.add('active'); el('tabLecturas').classList.remove('active'); el('viewCalib').classList.remove('hidden'); el('viewLecturas').classList.add('hidden'); }
 el('tabLecturas').addEventListener('click', showLecturas);
 el('tabCalib').addEventListener('click', showCalib);
 el('goCalib').addEventListener('click', showCalib);
 
-// Toggle Ayuda
+// Despliega u oculta la guía rápida de calibración.
 el('toggleHelp').addEventListener('click', () => {
   const content = el('helpContent');
   const arrow = el('helpArrow');
@@ -339,7 +383,7 @@ el('toggleHelp').addEventListener('click', () => {
   }
 });
 
-// UUIDs
+// UUIDs del servicio y características BLE. Deben coincidir exactamente con los definidos en el firmware del Arduino.
 const SVC_UUID   = '6e400001-b5a3-f393-e0a9-e50e24dcca9f';
 const RAW_UUID   = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 const NORM_UUID  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
@@ -351,7 +395,7 @@ const ROT_UUID   = '6e400007-b5a3-f393-e0a9-e50e24dcca9e';
 const ROTN_UUID  = '6e400008-b5a3-f393-e0a9-e50e24dcca9e';
 const RCAL_UUID  = '6e400009-b5a3-f393-e0a9-e50e24dcca9e';
 
-// Estado
+// Variables de estado de la conexión BLE, características GATT y envío de comandos.
 let device, server, service;
 let chRaw, chNorm, chAng, chCmd, chCal;
 let chRot, chRotN, chRcal, chAck;
@@ -364,12 +408,14 @@ let commandBusy = false;
 const commandButtonIds = ['btnOpen','btnClosed','btnReset','btnRotZero','btnRotCCW','btnRotCW','btnRotReset','btnFinish','btnConfirmPat'];
 const profileButtonIds = ['btnPatNone','btnPatPark','btnPatTour'];
 
+// Habilita o deshabilita botones según haya conexión activa y ningún comando pendiente.
 function refreshButtons() {
   const on = !!(device && device.gatt && device.gatt.connected && chCmd);
   commandButtonIds.forEach(id => { const b = el(id); if (b) b.disabled = !on || commandBusy; });
   profileButtonIds.forEach(id => { const b = el(id); if (b) b.disabled = !on || commandBusy; });
 }
 
+// Actualiza el indicador visual de conexión y el estado de los botones principales.
 const setConnected = (on, name='—')=>{
   el('dot').classList.toggle('on', on);
   const statusText = el('statusText');
@@ -384,7 +430,8 @@ const setConnected = (on, name='—')=>{
 };
 
 
-// Conexión
+// Conexión inicial con el guante mediante Web Bluetooth.
+// La web actúa como cliente GATT y el Arduino como servidor BLE.
 async function connect(){
   try{
     const prefix = el('namePrefix').value.trim() || 'Guante';
@@ -402,9 +449,8 @@ async function connect(){
     chRotN = await service.getCharacteristic(ROTN_UUID);
     chRcal = await service.getCharacteristic(RCAL_UUID);
 
-    // ACK opcional: confirma que Arduino ha procesado realmente cada comando.
-    // Si el Arduino todavía no tiene esta característica, la web seguirá funcionando
-    // con solo escritura BLE, pero sin confirmación.
+    // Característica ACK: permite saber si el Arduino ha procesado y guardado
+    // realmente un comando. Si no existe, se mantiene un modo compatible.
     try {
       chAck = await service.getCharacteristic(ACK_UUID);
       await chAck.startNotifications();
@@ -420,6 +466,8 @@ async function connect(){
     setConnected(true);
     log('Vinculado. Suscribiendo a sensores...');
 
+    // Suscripción al porcentaje de flexión normalizado.
+    // Este dato representa la consigna de avance calculada por el guante.
     await chNorm.startNotifications();
     chNorm.addEventListener('characteristicvaluechanged', e=>{
       const pct = e.target.value.getUint8(0);
@@ -428,6 +476,7 @@ async function connect(){
     });
     await delay(100);
 
+    // Suscripción al ángulo físico de flexión, útil para observar el sensor durante la calibración.
     await chAng.startNotifications();
     chAng.addEventListener('characteristicvaluechanged', e=>{
       const deg = e.target.value.getFloat32(0, true);
@@ -436,6 +485,7 @@ async function connect(){
     });
     await delay(100);
     
+    // Suscripción a los límites de calibración de flexión guardados en memoria del Arduino.
     await chCal.startNotifications();
     chCal.addEventListener('characteristicvaluechanged', e => {
       const min = e.target.value.getFloat32(0, true);
@@ -445,6 +495,7 @@ async function connect(){
     });
     await delay(100);
     
+    // Lectura inicial de calibración: permite mostrar valores guardados aunque no llegue una notificación.
     try {
       const dvCal = await chCal.readValue();
       el('minVal').textContent = dvCal.getFloat32(0, true).toFixed(1);
@@ -452,6 +503,7 @@ async function connect(){
     } catch(e) { log('Aviso: No se pudo leer CAL inicial'); }
     await delay(100);
 
+    // Suscripción al ángulo Roll de la muñeca, calculado por la IMU y el filtro de orientación.
     await chRot.startNotifications();
     chRot.addEventListener('characteristicvaluechanged', e=>{
       const deg = e.target.value.getFloat32(0, true);
@@ -460,6 +512,7 @@ async function connect(){
     });
     await delay(100);
 
+    // Suscripción al giro normalizado: 0 izquierda, 50 centro, 100 derecha.
     await chRotN.startNotifications();
     chRotN.addEventListener('characteristicvaluechanged', e=>{
       const pct = e.target.value.getUint8(0);
@@ -467,6 +520,7 @@ async function connect(){
     });
     await delay(100);
 
+    // Suscripción a los límites de calibración de giro guardados en el guante.
     await chRcal.startNotifications();
     chRcal.addEventListener('characteristicvaluechanged', e => {
       const z = (e.target.value.getInt16(0,false))/10;
@@ -494,6 +548,7 @@ async function connect(){
   }
 }
 
+// Cancela comandos pendientes si se pierde la conexión antes de recibir ACK.
 function rejectPendingAcks(reason='desconectado') {
   for (const [seq, waiter] of ackWaiters.entries()) {
     clearTimeout(waiter.timer);
@@ -502,6 +557,7 @@ function rejectPendingAcks(reason='desconectado') {
   ackWaiters.clear();
 }
 
+// Rutina ejecutada por el navegador cuando se pierde o se cierra la conexión BLE.
 function onDisconnect(){
   rejectPendingAcks('desconectado');
   commandBusy = false;
@@ -513,20 +569,26 @@ function onDisconnect(){
 async function disconnect(){ try{ device && device.gatt && device.gatt.connected && device.gatt.disconnect(); }catch(_){} }
 
 // =====================================================================
-// ENVÍO BLE ROBUSTO: 1 comando cada vez, sin cola infinita
+// ENVÍO BLE ROBUSTO
+// Se envía un único comando cada vez y se bloquean temporalmente los botones
+// hasta recibir confirmación o agotar el tiempo de espera. Esto evita que varias
+// pulsaciones rápidas de calibración dejen el GATT en un estado inconsistente.
 // =====================================================================
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+// Comprueba que existe una conexión BLE válida antes de intentar enviar comandos.
 function isBleReady() {
   return !!(device && device.gatt && device.gatt.connected && chCmd);
 }
 
+// Bloquea los botones mientras hay un comando en curso para evitar órdenes solapadas.
 function setCommandBusy(on) {
   commandBusy = on;
   refreshButtons();
 }
 
+// Procesa el ACK/ERR que devuelve el Arduino para confirmar el resultado del comando.
 function onAck(e) {
   const bytes = new Uint8Array(e.target.value.buffer);
   const txt = decoder.decode(bytes).replace(/\0/g, '').trim();
@@ -549,6 +611,7 @@ function onAck(e) {
   else waiter.reject(new Error(txt));
 }
 
+// Espera una confirmación asociada al número de secuencia del comando enviado.
 function waitForAck(seq, timeoutMs = 2500) {
   if (!ackSupported) return delay(250);
 
@@ -561,11 +624,13 @@ function waitForAck(seq, timeoutMs = 2500) {
   });
 }
 
+// Escribe el comando en la característica CMD_UUID codificado como texto UTF-8.
 async function writeBleCommand(payload) {
   const data = encoder.encode(payload);
 
-  // Con el firmware v2 la característica permite WriteWithoutResponse.
-  // Es más estable en Chrome porque el ACK lo gestionamos nosotros por otra característica.
+  // Se prioriza WriteWithoutResponse cuando está disponible.
+  // La fiabilidad no depende de la respuesta GATT estándar, sino del ACK propio
+  // enviado por el Arduino en otra característica.
   if (chCmd.properties && chCmd.properties.writeWithoutResponse && chCmd.writeValueWithoutResponse) {
     await chCmd.writeValueWithoutResponse(data);
   } else if (chCmd.writeValueWithResponse) {
@@ -575,6 +640,7 @@ async function writeBleCommand(payload) {
   }
 }
 
+// Envío completo de un comando: validación de conexión, número de secuencia, escritura y espera de ACK.
 async function sendCmd(txt) {
   if (!isBleReady()) {
     log('No conectado: no se envía ' + txt);
@@ -613,7 +679,8 @@ async function sendCmd(txt) {
 
     log('Error BLE enviando ' + txt + ': ' + e.message);
 
-    // Si Chrome deja el GATT bloqueado, es mejor cortar limpio que dejar botones colgados.
+    // Si el navegador deja bloqueada la conexión GATT, se fuerza desconexión limpia
+    // para que el usuario pueda reconectar sin dejar botones deshabilitados.
     try { if (device && device.gatt && device.gatt.connected) device.gatt.disconnect(); } catch(_) {}
     return false;
   } finally {
@@ -622,7 +689,7 @@ async function sendCmd(txt) {
 }
 // =====================================================================
 
-// Eventos Botones Básicos
+// Asociación entre botones de la HMI y comandos entendidos por el firmware.
 el('btnConnect').addEventListener('click', connect);
 el('btnDisconnect').addEventListener('click', disconnect);
 el('btnOpen').addEventListener('click', ()=>sendCmd('SET_OPEN'));
@@ -633,7 +700,8 @@ el('btnRotCCW').addEventListener('click', ()=>sendCmd('ROT_MIN'));
 el('btnRotCW').addEventListener('click', ()=>sendCmd('ROT_MAX'));
 el('btnRotReset').addEventListener('click', ()=>sendCmd('ROT_RESET'));
 
-// Eventos Perfiles Médicos
+// Selección visual del perfil médico. El comando solo se envía al pulsar "Aplicar".
+// Actualiza únicamente la apariencia de los botones de perfil seleccionado.
 function setProfileBtn(activeBtn) {
   ['btnPatNone', 'btnPatPark', 'btnPatTour'].forEach(id => {
     el(id).className = (id === activeBtn) ? 'active-profile' : 'secondary';
@@ -652,13 +720,15 @@ el('btnFinish').addEventListener('click', async () => {
   try {
     await sendCmd('CAL_DONE');
     log('Calibración guardada. Desconectando...');
-    // Dejamos margen para que Arduino termine de guardar en Flash sin cortar BLE.
+    // Margen de seguridad para que el Arduino termine de procesar el comando
+    // antes de cerrar la conexión BLE desde la web.
     setTimeout(() => disconnect(), 1500);
   } catch(e) {
     log('Error al finalizar: ' + e.message);
   }
 });
 
+// Comprobación de compatibilidad: Web Bluetooth no está disponible en todos los navegadores.
 if(!('bluetooth' in navigator)){ log('Navegador no soporta Web Bluetooth'); el('btnConnect').disabled=true; }
 
 setConnected(false);
