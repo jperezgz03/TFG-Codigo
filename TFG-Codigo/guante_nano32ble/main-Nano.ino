@@ -8,57 +8,69 @@
 #include <Wire.h>
 #include <NanoBLEFlashPrefs.h>
 
-// LIBRERÍA DEL SENSOR CAPACITIVO (Bend Labs / Nitto)
+// Librería del sensor capacitivo de flexión Bend Labs / Nitto.
 #include "SparkFun_Displacement_Sensor_Arduino_Library.h"
 
-// ===================== CONFIGURACIÓN =====================
-const int ADS_RST_PIN = 3; // nRST del sensor Bend Labs/Nitto conectado a D3
+// ===================== CONFIGURACIÓN GENERAL =====================
+// Pin de reset hardware del sensor de flexión. Permite reiniciar el sensor
+// al arrancar el guante para asegurar una lectura inicial estable.
+const int ADS_RST_PIN = 3;
 
-const float EMA_ALPHA_FLEX = 0.20f; // Suavizado base estándar
-const uint32_t LOOP_MS = 20;        // Frecuencia de muestreo (50 Hz)
-const uint32_t WEB_NOTIFY_MS = 250;  // Web: 4 actualizaciones/segundo, suficiente y no satura BLE
-const uint32_t COMMAND_QUIET_MS = 350; // Pausa de telemetría tras un comando para que el ACK salga limpio
+// Parámetros principales del lazo de control.
+// El guante trabaja cada 20 ms, es decir, a 50 Hz.
+const float EMA_ALPHA_FLEX = 0.20f;
+const uint32_t LOOP_MS = 20;
 
-// --- PROTECCIÓN DE LA SEÑAL DE FLEXIÓN ---
-// El rechazo de picos se aplica siempre, porque un pico espurio del sensor no
-// depende del perfil médico. La limitación de pendiente se aplica a la consigna
-// de avance enviada al receptor, especialmente útil cuando el rango calibrado
-// del usuario es reducido.
-const float FLEX_MIN_VALID_DEG = -230.0f;       // Límite físico razonable inferior
-const float FLEX_MAX_VALID_DEG = 50.0f;       // Límite físico razonable superior
-const float FLEX_SPIKE_MIN_DEG = 6.0f;         // Umbral mínimo de salto sospechoso
-const float FLEX_SPIKE_MAX_DEG = 12.0f;        // Umbral máximo de salto sospechoso
-const uint8_t FLEX_SPIKE_CONFIRM_SAMPLES = 4;  // Muestras necesarias para aceptar un salto grande real
+// La web no necesita recibir datos a 50 Hz. Se limita la telemetría de la HMI
+// para reducir tráfico BLE y dejar margen a los comandos de calibración.
+const uint32_t WEB_NOTIFY_MS = 250;
 
-// Limitador de pendiente de la consigna normalizada de avance.
-// Se permite frenar más rápido que acelerar por seguridad.
-const float FLEX_PCT_INC_SMALL_RANGE = 2.0f;   // % por ciclo si el rango calibrado es pequeño
-const float FLEX_PCT_INC_MED_RANGE   = 4.0f;   // % por ciclo si el rango calibrado es medio
-const float FLEX_PCT_INC_BIG_RANGE   = 6.0f;   // % por ciclo si el rango calibrado es amplio
-const float FLEX_PCT_MAX_DEC         = 15.0f;  // % por ciclo para reducir velocidad
+// Pequeña pausa de telemetría después de recibir un comando. Evita conflictos
+// entre notificaciones BLE y el envío del ACK de confirmación.
+const uint32_t COMMAND_QUIET_MS = 350;
 
-// --- PERFIL TOURETTE: VALIDACIÓN TEMPORAL DE ESPASMOS ---
-// Giro: solo entra como candidato si la diferencia respecto a la salida filtrada
-// supera este umbral. Se ha aumentado para evitar que giros voluntarios amplios
-// entren demasiado pronto en modo candidato.
+// ===================== PROTECCIÓN DE LA SEÑAL DE FLEXIÓN =====================
+// Se descartan lecturas físicamente no razonables y picos aislados del sensor.
+// Esto es importante porque una lectura errónea podría interpretarse como una
+// orden brusca de avance.
+const float FLEX_MIN_VALID_DEG = -230.0f;
+const float FLEX_MAX_VALID_DEG = 50.0f;
+const float FLEX_SPIKE_MIN_DEG = 6.0f;
+const float FLEX_SPIKE_MAX_DEG = 12.0f;
+const uint8_t FLEX_SPIKE_CONFIRM_SAMPLES = 4;
+
+// Limitador de pendiente de la consigna de avance.
+// La aceleración se limita para evitar arranques bruscos; la reducción de
+// velocidad se permite más rápida por seguridad.
+const float FLEX_PCT_INC_SMALL_RANGE = 2.0f;
+const float FLEX_PCT_INC_MED_RANGE   = 4.0f;
+const float FLEX_PCT_INC_BIG_RANGE   = 6.0f;
+const float FLEX_PCT_MAX_DEC         = 15.0f;
+
+// ===================== PERFIL TOURETTE =====================
+// En este perfil se validan temporalmente cambios muy bruscos. La idea es no
+// aceptar de inmediato un posible tic motor como si fuera una orden voluntaria.
 const float TOUR_ROLL_SPIKE_DELTA_DEG = 40.0f;
 const uint32_t TOUR_ROLL_CONFIRM_MS   = 1000;
 const float TOUR_ROLL_RETURN_DEG      = 10.0f;
 const float TOUR_ROLL_NORMAL_ALPHA    = 0.60f;
 const float TOUR_ROLL_ACCEPT_ALPHA    = 0.85f;
 
-// Flexión: se filtran subidas bruscas de velocidad para evitar arranques por tic.
-// Las bajadas de velocidad/parada NO se retrasan por seguridad.
+// Protección equivalente para la flexión: se bloquean subidas bruscas de
+// velocidad, pero no se retrasan las bajadas ni la parada.
 const float TOUR_FLEX_INC_SPIKE_PCT = 35.0f;
 const uint32_t TOUR_FLEX_CONFIRM_MS = 1000;
 const float TOUR_FLEX_RETURN_PCT    = 10.0f;
 
-// --- PERFILES MÉDICOS ---
+// ===================== PERFILES MÉDICOS DISPONIBLES =====================
+// NONE: funcionamiento estándar.
+// PARKINSON: aplica filtrado paso bajo para atenuar temblores rápidos.
+// TOURETTE: aplica validación temporal frente a tics o movimientos espasmódicos.
 enum PathologyType { NONE = 0, PARKINSON = 1, TOURETTE = 2 };
 
-// --- ESTRUCTURA PARA GUARDAR DATOS EN MEMORIA ---
-// V4: estructura con cabecera, versión y CRC para no aceptar basura antigua
-// ni datos corruptos tras un apagado.
+// ===================== DATOS DE CALIBRACIÓN EN MEMORIA FLASH =====================
+// Estructura persistente de calibración. Incluye cabecera, versión, tamaño y CRC
+// para detectar datos antiguos o corruptos después de un apagado.
 struct CalibrationData {
   uint32_t magic;
   uint16_t version;
@@ -72,25 +84,27 @@ struct CalibrationData {
   float mountRef;
 
   uint8_t haveRef;
-  uint8_t pathology; // Guarda el perfil médico seleccionado
+  uint8_t pathology;
   uint8_t reserved1;
   uint8_t reserved2;
 
   uint32_t crc;
 };
 
-const uint32_t CAL_MAGIC = 0x47564C34; // "GVL4"
+const uint32_t CAL_MAGIC = 0x47564C34; // Identificador de la estructura: "GVL4".
 const uint16_t CAL_VERSION = 4;
 
 CalibrationData calData;
 NanoBLEFlashPrefs flashPrefs;
 
-// Sensor capacitivo Bend Labs / Nitto One Axis
+// Sensor capacitivo Bend Labs / Nitto One Axis.
 ADS flexSensor;
 bool flexOK = false;
 float lastFlexAngle = 0.0f;
 
-// Variables de estado
+// ===================== VARIABLES DE ESTADO =====================
+// systemActive solo se activa al terminar la calibración. Mientras sea falso,
+// el guante puede medir y calibrar, pero no ordena movimiento al receptor.
 bool systemActive = false;
 bool calibrationDirty = false;
 bool pendingCalNotify = false;
@@ -98,24 +112,26 @@ bool pendingRcalNotify = false;
 uint32_t lastCommandMs = 0;
 bool bleReady = false;
 
-// Variables de filtrado
+// Variables filtradas principales: flexión de dedo y giro relativo de muñeca.
 float emaAngleFlex = 0.0f;
 float emaRollRel = 0.0f;
 
-// Estado del rechazo de picos del sensor de flexión
+// Estado interno del rechazo de picos de flexión.
 float flexClean = 0.0f;
 float flexCandidate = 0.0f;
 uint8_t flexCandidateCount = 0;
 bool flexCleanInit = false;
 
-// Estado del limitador de pendiente de la consigna de avance
+// Estado interno del limitador de rampa de avance.
 float pctFlexCommandLimited = 0.0f;
 bool pctFlexCommandInit = false;
 
 Madgwick ahrs;
 bool imuOK = false;
 
-// ===================== BLE UUIDs =====================
+// ===================== UUIDs BLE =====================
+// Servicio BLE propio del guante. Cada característica separa una función:
+// telemetría, calibración, control, comandos o confirmaciones.
 const char* SVC_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9F";
 const char* RAW_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
 const char* NORM_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
@@ -141,6 +157,7 @@ BLECharacteristic ctrlChar(CTRL_UUID, BLERead | BLENotify, 4);
 BLECharacteristic ackChar(ACK_UUID, BLERead | BLENotify, 20);
 
 // ===================== FUNCIONES AUXILIARES =====================
+// Conversión de datos a formato binario para enviarlos por BLE de forma compacta.
 static inline void u16_to_be(uint16_t v, uint8_t out[2]) { out[0] = v >> 8; out[1] = v & 0xFF; }
 static inline void i16_to_be(int16_t v, uint8_t out[2]) { out[0] = (v >> 8) & 0xFF; out[1] = v & 0xFF; }
 static inline void f32_to_le(float f, uint8_t out[4]) {
@@ -158,16 +175,10 @@ float clampRoll180(float a) {
   return a;
 }
 
-
 float applyRollDynamicStability(float targetRoll, float currentRoll) {
-  // Filtro dinámico común para estabilizar el Roll en todos los perfiles.
-  // No sustituye al filtro específico de cada patología, sino que actúa como
-  // etapa final para evitar que pequeñas oscilaciones con la mano quieta se
-  // conviertan en variaciones continuas de dirección.
-  //
-  // La ganancia alpha NO es fija en la zona intermedia: aumenta de forma
-  // progresiva con la diferencia angular. Así, una diferencia de 3 grados se
-  // suaviza mucho más que una diferencia de 10 grados.
+  // Filtro dinámico común aplicado al ángulo de giro.
+  // Su objetivo es estabilizar la dirección cuando la mano está casi quieta,
+  // sin hacer lenta la respuesta cuando el usuario realiza un giro claro.
 
   targetRoll = clampRoll180(targetRoll);
   currentRoll = clampRoll180(currentRoll);
@@ -175,15 +186,13 @@ float applyRollDynamicStability(float targetRoll, float currentRoll) {
   float rollDiff = targetRoll - currentRoll;
   float diff = fabsf(rollDiff);
 
-  // Zona de reposo: ignora microvariaciones alrededor de la posición actual.
-  // Esto evita que el valor baile cuando la mano está prácticamente quieta.
+  // Zona de reposo: pequeñas variaciones se consideran ruido o temblor leve.
   if (diff < 2.0f) {
     return currentRoll;
   }
 
-  // Zona dinámica: alpha aumenta linealmente entre 2 y 12 grados.
-  // diff = 3º  -> alpha bajo, mucha estabilidad.
-  // diff = 10º -> alpha más alto, mayor seguimiento.
+  // Zona intermedia: el filtro se abre de forma progresiva según aumenta
+  // la diferencia angular.
   if (diff < 12.0f) {
     const float alphaMin = 0.08f;
     const float alphaMax = 0.45f;
@@ -196,8 +205,7 @@ float applyRollDynamicStability(float targetRoll, float currentRoll) {
     return clampRoll180(currentRoll + alpha * rollDiff);
   }
 
-  // Zona de movimiento voluntario claro: respuesta rápida, pero sin abrir el
-  // filtro tanto como antes con alpha = 0.90, que hacía el Roll muy nervioso.
+  // Movimiento voluntario claro: seguimiento rápido, pero todavía suavizado.
   const float alphaFast = 0.65f;
   return clampRoll180(currentRoll + alphaFast * rollDiff);
 }
@@ -207,8 +215,8 @@ float calibratedFlexRangeDeg() {
 }
 
 float adaptiveFlexSpikeDeg() {
-  // Si el rango calibrado es pequeño, un salto de pocos grados puede suponer
-  // pasar de 0% a 100%. Por eso el umbral se hace adaptativo.
+  // El umbral de pico se adapta al rango de flexión calibrado. Si el usuario
+  // tiene poco recorrido útil, pocos grados pueden representar un gran cambio.
   float range = calibratedFlexRangeDeg();
   float th = 0.45f * range;
   th = clampf(th, FLEX_SPIKE_MIN_DEG, FLEX_SPIKE_MAX_DEG);
@@ -218,30 +226,32 @@ float adaptiveFlexSpikeDeg() {
 float flexMaxIncreasePctPerCycle() {
   float range = calibratedFlexRangeDeg();
 
-  // Con rangos pequeños el sistema es muy sensible: aceleramos más despacio.
+  // Cuanto menor es el rango calibrado, más sensible es el sistema. Por eso
+  // se reduce la velocidad máxima de subida de la consigna.
   if (range < 15.0f) return FLEX_PCT_INC_SMALL_RANGE;
   if (range < 35.0f) return FLEX_PCT_INC_MED_RANGE;
   return FLEX_PCT_INC_BIG_RANGE;
 }
 
 void resetFlexSignalProtection(float currentFlexDeg) {
+  // Reinicia los estados internos de protección de flexión con el valor actual.
   flexClean = currentFlexDeg;
   flexCandidate = currentFlexDeg;
   flexCandidateCount = 0;
   flexCleanInit = true;
 
-  // La consigna al receptor arranca desde cero por seguridad.
+  // La velocidad enviada al receptor arranca siempre desde cero por seguridad.
   pctFlexCommandLimited = 0.0f;
   pctFlexCommandInit = true;
 }
 
 float rejectFlexSpike(float x) {
-  // Rechazo de lecturas imposibles o no numéricas.
+  // Lecturas no numéricas o fuera de rango se descartan.
   if (!isfinite(x) || x < FLEX_MIN_VALID_DEG || x > FLEX_MAX_VALID_DEG) {
     return flexCleanInit ? flexClean : lastFlexAngle;
   }
 
-  // Inicialización con la primera lectura válida.
+  // Primera lectura válida: inicializa la referencia limpia.
   if (!flexCleanInit) {
     resetFlexSignalProtection(x);
     return x;
@@ -250,7 +260,7 @@ float rejectFlexSpike(float x) {
   float diff = x - flexClean;
   float spikeThreshold = adaptiveFlexSpikeDeg();
 
-  // Si el salto es compatible con un gesto normal, se acepta.
+  // Cambio razonable: se acepta directamente como movimiento normal.
   if (fabsf(diff) <= spikeThreshold) {
     flexClean = x;
     flexCandidate = x;
@@ -258,8 +268,7 @@ float rejectFlexSpike(float x) {
     return x;
   }
 
-  // Si el salto es excesivo, se considera sospechoso. Solo se acepta si el
-  // nuevo valor se mantiene durante varias muestras consecutivas.
+  // Cambio demasiado brusco: se acepta solo si se repite durante varias muestras.
   float candidateWindow = max(1.5f, spikeThreshold * 0.25f);
   if (fabsf(x - flexCandidate) <= candidateWindow) {
     flexCandidateCount++;
@@ -275,11 +284,12 @@ float rejectFlexSpike(float x) {
     return x;
   }
 
-  // Pico aislado: se mantiene la última muestra considerada válida.
+  // Pico aislado: se mantiene la última lectura aceptada.
   return flexClean;
 }
 
 float limitFlexCommandPercent(float targetPct) {
+  // Limita la velocidad de cambio de la consigna de avance normalizada.
   targetPct = clampf(targetPct, 0.0f, 100.0f);
 
   if (!pctFlexCommandInit) {
@@ -303,8 +313,8 @@ float limitFlexCommandPercent(float targetPct) {
 }
 
 // ===================== PERFIL TOURETTE: FILTROS TEMPORALES =====================
-// Esta lógica NO modifica la configuración de Madgwick ni la frecuencia interna.
-// Solo se aplica cuando el perfil TOURETTE está seleccionado desde la HMI.
+// Estos filtros no modifican el sensor ni Madgwick. Solo deciden si un cambio
+// brusco debe aceptarse inmediatamente o esperar confirmación temporal.
 class TouretteRollTemporalGate {
 public:
   bool candidateActive = false;
@@ -320,20 +330,19 @@ public:
   }
 
   float update(float raw, float currentOutput, uint32_t now) {
-    // En este control el Roll NO se trata como una magnitud circular.
-    // Si supera +180 o -180 se satura, no se envuelve al lado contrario.
+    // El Roll se satura entre -180° y 180° para evitar saltos de envolvimiento.
     raw = clampRoll180(raw);
     currentOutput = clampRoll180(currentOutput);
 
     float diff = raw - currentOutput;
     float absDiff = fabsf(diff);
 
-    // Movimiento normal o progresivo: respuesta rápida, sin congelar.
+    // Movimiento normal: se sigue con una ganancia rápida.
     if (!candidateActive && absDiff <= TOUR_ROLL_SPIKE_DELTA_DEG) {
       return clampRoll180(currentOutput + TOUR_ROLL_NORMAL_ALPHA * diff);
     }
 
-    // Nuevo salto brusco: se considera candidato, no se acepta todavía.
+    // Salto brusco: se guarda como candidato y no se aplica todavía.
     if (!candidateActive) {
       candidateActive = true;
       anchor = currentOutput;
@@ -342,18 +351,18 @@ public:
       return clampRoll180(currentOutput);
     }
 
-    // Candidato activo: evaluamos si el cambio se mantiene o desaparece.
+    // Candidato activo: se comprueba si persiste o si vuelve al valor anterior.
     float candidateDiffFromAnchor = raw - anchor;
     float signedDistance = candidateSign * candidateDiffFromAnchor;
 
-    // Si vuelve cerca del valor anterior, se interpreta como tic corto y se descarta.
+    // Si el gesto vuelve cerca de la referencia, se interpreta como tic breve.
     if (signedDistance <= TOUR_ROLL_RETURN_DEG) {
       candidateActive = false;
       candidateSign = 0;
       return clampRoll180(currentOutput);
     }
 
-    // Si el cambio persiste durante la ventana temporal, se acepta rápido.
+    // Si el cambio se mantiene el tiempo definido, se acepta como voluntario.
     if (now - candidateStartMs >= TOUR_ROLL_CONFIRM_MS) {
       candidateActive = false;
       candidateSign = 0;
@@ -362,7 +371,7 @@ public:
       return clampRoll180(currentOutput + TOUR_ROLL_ACCEPT_ALPHA * acceptDiff);
     }
 
-    // Mientras no se confirme, se mantiene la salida anterior.
+    // Mientras no se confirme, la salida permanece congelada.
     return clampRoll180(currentOutput);
   }
 };
@@ -385,19 +394,18 @@ public:
 
     float delta = targetPct - currentCommandPct;
 
-    // Seguridad: las bajadas de velocidad o parada se aceptan rápido.
-    // No conviene retrasar una orden que reduce movimiento.
+    // Seguridad: reducir velocidad o parar se acepta sin retardo.
     if (delta <= 0.0f) {
       candidateActive = false;
       return targetPct;
     }
 
-    // Subida pequeña/progresiva: se acepta.
+    // Subida pequeña: se considera compatible con un gesto voluntario normal.
     if (!candidateActive && delta <= TOUR_FLEX_INC_SPIKE_PCT) {
       return targetPct;
     }
 
-    // Subida brusca: se guarda como candidata.
+    // Subida brusca: queda pendiente de confirmación temporal.
     if (!candidateActive) {
       candidateActive = true;
       anchorPct = currentCommandPct;
@@ -405,19 +413,19 @@ public:
       return currentCommandPct;
     }
 
-    // Si el valor vuelve cerca del punto inicial, se descarta como tic.
+    // Si vuelve cerca del punto inicial, se descarta como evento breve.
     if (targetPct <= anchorPct + TOUR_FLEX_RETURN_PCT) {
       candidateActive = false;
       return targetPct;
     }
 
-    // Si la subida brusca persiste, se acepta.
+    // Si persiste, se acepta como intención de avance real.
     if (now - candidateStartMs >= TOUR_FLEX_CONFIRM_MS) {
       candidateActive = false;
       return targetPct;
     }
 
-    // Mientras no se confirme, se mantiene la consigna anterior.
+    // Mientras no se confirme, se mantiene la consigna previa.
     return currentCommandPct;
   }
 };
@@ -431,12 +439,9 @@ void resetTouretteGates() {
 }
 
 // ===================== FILTRO BUTTERWORTH PASO BAJO =====================
-// Filtro digital IIR Butterworth de 2º orden.
-// Coeficientes calculados para:
-//   fs = 50 Hz  (LOOP_MS = 20 ms)
-//   fc = 2 Hz   (perfil PARKINSON, rechazo de oscilaciones rápidas)
-// Ecuación:
-//   y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]
+// Filtro IIR Butterworth de 2º orden usado en el perfil Parkinson.
+// Con fs = 50 Hz y fc = 2 Hz, atenúa temblores rápidos y conserva movimientos
+// voluntarios más lentos.
 class ButterworthLPF2 {
 public:
   const float b0 = 0.0133592000f;
@@ -474,6 +479,7 @@ ButterworthLPF2 butterFlexPark;
 ButterworthLPF2 butterRollPark;
 
 // ===================== MEMORIA Y CALIBRACIÓN =====================
+// CRC32 usado para comprobar que los datos guardados en Flash son válidos.
 uint32_t crc32_update(uint32_t crc, uint8_t data) {
   crc ^= data;
   for (uint8_t i = 0; i < 8; i++) {
@@ -500,8 +506,8 @@ void setDefaultCalibration() {
   calData.version = CAL_VERSION;
   calData.size = sizeof(CalibrationData);
 
-  // OJO: el sensor puede dar grados negativos. Guardar -22° es válido.
-  // Estos son solo valores por defecto hasta que calibres.
+  // Valores iniciales seguros hasta que el usuario realice la calibración.
+  // El sensor puede entregar ángulos negativos, por lo que se validan después.
   calData.minFlex = 0.0f;
   calData.maxFlex = 90.0f;
   calData.rotZero = 0.0f;
@@ -514,6 +520,7 @@ void setDefaultCalibration() {
 }
 
 bool calibrationLooksValid(const CalibrationData& d) {
+  // Comprueba estructura, versión, tamaño, CRC y rangos básicos.
   if (d.magic != CAL_MAGIC) return false;
   if (d.version != CAL_VERSION) return false;
   if (d.size != sizeof(CalibrationData)) return false;
@@ -531,6 +538,8 @@ bool calibrationLooksValid(const CalibrationData& d) {
 }
 
 bool saveCalibrationNow(const char* reason) {
+  // Guarda la calibración en Flash y verifica inmediatamente la lectura.
+  // Solo se considera correcto si el dato queda escrito y validado.
   calData.magic = CAL_MAGIC;
   calData.version = CAL_VERSION;
   calData.size = sizeof(CalibrationData);
@@ -539,7 +548,7 @@ bool saveCalibrationNow(const char* reason) {
   Serial.print("FLASH SAVE START: ");
   Serial.println(reason);
 
-  // Silencio BLE alrededor de la escritura. Evita atascar Chrome al guardar flash.
+  // Se reduce temporalmente la actividad BLE para no interferir con la escritura.
   lastCommandMs = millis();
   if (bleReady) BLE.poll();
 
@@ -561,7 +570,7 @@ bool saveCalibrationNow(const char* reason) {
     Serial.print("FLASH SAVE OK: ");
     Serial.println(reason);
 
-    // Lectura de verificación inmediata. Si esto falla, NO mandamos ACK.
+    // Verificación inmediata: evita confirmar a la web una calibración no guardada.
     CalibrationData verify;
     int rr = flashPrefs.readPrefs(&verify, sizeof(verify));
     if (rr == 0 && calibrationLooksValid(verify)) {
@@ -589,6 +598,7 @@ bool saveCalibrationIfDirty(const char* reason) {
 }
 
 void sendAck(const String& seq, bool ok) {
+  // Respuesta a la web: ACK si el comando se procesó correctamente, ERR si falló.
   String msg = (ok ? "ACK|" : "ERR|") + seq;
   uint8_t buf[20] = {0};
   size_t n = min((size_t)20, msg.length());
@@ -609,17 +619,17 @@ void loadCalibration() {
     Serial.print(" ");
     Serial.println(flashPrefs.errorString(rc));
 
-    // Forzamos valores limpios. Al cambiar a V4 se ignora memoria antigua V2/V3.
+    // Si no hay datos válidos, se cargan valores por defecto y se guardan.
     setDefaultCalibration();
     calibrationDirty = true;
     saveCalibrationNow("defaults");
   }
 }
 
-// ===================== LECTURA SENSORES =====================
+// ===================== LECTURA DE SENSORES =====================
 void resetFlexSensorHardware() {
-  // El Arduino Nano 33 BLE trabaja a 3.3V, por eso HIGH es seguro en este caso.
-  // nRST es activo en bajo: LOW = reset, HIGH = funcionamiento normal.
+  // nRST es activo a nivel bajo. Se fuerza un reset físico del sensor antes
+  // de iniciar la comunicación I2C.
   pinMode(ADS_RST_PIN, OUTPUT);
   digitalWrite(ADS_RST_PIN, LOW);
   delay(100);
@@ -645,7 +655,7 @@ bool beginFlexSensor() {
   Serial.print("Firmware: ");
   Serial.println(flexSensor.getFirmwareVersion());
 
-  // Primera lectura válida para inicializar el filtro EMA
+  // Se espera una primera muestra válida para arrancar los filtros sin salto.
   uint32_t t0 = millis();
   while (millis() - t0 < 1000) {
     if (flexSensor.available()) {
@@ -660,16 +670,16 @@ bool beginFlexSensor() {
 }
 
 float readFlexSensor() {
-  // La librería actualiza getX() únicamente cuando available() devuelve true.
+  // Si hay una muestra nueva, se actualiza. Si no, se conserva la última válida.
   if (flexOK && flexSensor.available()) {
     lastFlexAngle = flexSensor.getX();
   }
 
-  // Si no hay muestra nueva, mantenemos el último ángulo válido.
   return lastFlexAngle;
 }
 
 uint8_t flexAngleToPercent(float val) {
+  // Convierte el ángulo calibrado de flexión en porcentaje de avance 0-100 %.
   float mn = min(calData.minFlex, calData.maxFlex);
   float mx = max(calData.minFlex, calData.maxFlex);
   val = clampf(val, mn, mx);
@@ -680,6 +690,8 @@ uint8_t flexAngleToPercent(float val) {
 }
 
 uint8_t angleToPercent(float currentAngle) {
+  // Convierte el Roll calibrado de la muñeca en dirección 0-100 %.
+  // El 50 % representa avance recto.
   if (currentAngle >= calData.rotZero) {
     float rango = max(1.0f, calData.rotMin - calData.rotZero);
     float pct = 50.0f + 50.0f * (currentAngle - calData.rotZero) / rango;
@@ -693,6 +705,7 @@ uint8_t angleToPercent(float currentAngle) {
 
 // ===================== NOTIFICACIONES BLE =====================
 void notifyCAL() {
+  // Envía a la web los dos límites guardados de flexión.
   uint8_t buf[8];
   f32_to_le(calData.minFlex, buf + 0);
   f32_to_le(calData.maxFlex, buf + 4);
@@ -700,6 +713,7 @@ void notifyCAL() {
 }
 
 void notifyRCAL() {
+  // Envía a la web los tres puntos de calibración de giro en décimas de grado.
   int16_t z = (int16_t)roundf(calData.rotZero * 10.0f);
   int16_t mn = (int16_t)roundf(calData.rotMin * 10.0f);
   int16_t mx = (int16_t)roundf(calData.rotMax * 10.0f);
@@ -718,9 +732,9 @@ void notifyRCALIfSubscribed() {
   notifyRCAL();
 }
 
-// ===================== COMANDOS DESDE LA WEB =====================
-// V4: cada botón de calibración guarda inmediatamente en Flash.
-// El ACK solo se manda cuando el dato se ha procesado, escrito y verificado.
+// ===================== COMANDOS RECIBIDOS DESDE LA WEB =====================
+// Cada comando modifica calibración, perfil o estado. Si cambia un parámetro
+// crítico, se guarda en Flash y se notifica a la web.
 bool handleCommand(const String& cmd, bool& mustSave, bool& mustNotifyCal, bool& mustNotifyRcal) {
   mustSave = false;
   mustNotifyCal = false;
@@ -776,7 +790,7 @@ bool handleCommand(const String& cmd, bool& mustSave, bool& mustNotifyCal, bool&
   }
   else if (cmd == "PAT_NONE") {
     calData.pathology = NONE;
-    // Reinicio de estados para evitar transitorios al cambiar de perfil.
+    // Al cambiar de perfil se reinician filtros para evitar transitorios.
     butterFlexPark.reset(emaAngleFlex);
     butterRollPark.reset(emaRollRel);
     resetTouretteGates();
@@ -784,7 +798,7 @@ bool handleCommand(const String& cmd, bool& mustSave, bool& mustNotifyCal, bool&
   }
   else if (cmd == "PAT_PARK") {
     calData.pathology = PARKINSON;
-    // Inicializamos el Butterworth con el valor actual filtrado para evitar saltos.
+    // El Butterworth arranca desde el valor actual para no provocar saltos.
     butterFlexPark.reset(emaAngleFlex);
     butterRollPark.reset(emaRollRel);
     resetTouretteGates();
@@ -792,7 +806,7 @@ bool handleCommand(const String& cmd, bool& mustSave, bool& mustNotifyCal, bool&
   }
   else if (cmd == "PAT_TOUR") {
     calData.pathology = TOURETTE;
-    // Reinicio de estados para evitar transitorios al cambiar de perfil.
+    // Se limpian estados internos de validación temporal.
     butterFlexPark.reset(emaAngleFlex);
     butterRollPark.reset(emaRollRel);
     resetTouretteGates();
@@ -803,9 +817,8 @@ bool handleCommand(const String& cmd, bool& mustSave, bool& mustNotifyCal, bool&
     mustNotifyRcal = true;
   }
   else if (cmd == "CAL_DONE") {
-    // Se activa la salida al robot, pero NO se persiste el estado activo por seguridad.
-    // La consigna de avance se inicia desde cero y sube con rampa, aunque la mano
-    // ya esté cerrada en el momento de empezar a conducir.
+    // A partir de este comando se permite enviar órdenes de movimiento.
+    // La velocidad arranca desde cero, aunque la mano ya esté cerrada.
     pctFlexCommandLimited = 0.0f;
     pctFlexCommandInit = true;
     resetTouretteGates();
@@ -820,6 +833,7 @@ bool handleCommand(const String& cmd, bool& mustSave, bool& mustNotifyCal, bool&
 }
 
 void processCommandPayload() {
+  // Lee el comando BLE, lo separa de su número de secuencia y responde con ACK.
   lastCommandMs = millis();
 
   int len = cmdChar.valueLength();
@@ -854,8 +868,7 @@ void processCommandPayload() {
     saved = saveCalibrationIfDirty(cmd.c_str());
   }
 
-  // Actualizamos inmediatamente el valor de las características para que readValue()
-  // al reconectar muestre lo último guardado, incluso si la notificación no llega.
+  // Actualiza las características BLE para que la web lea siempre el último dato.
   if (ok && mustNotifyCal) {
     notifyCAL();
     pendingCalNotify = false;
@@ -879,19 +892,21 @@ void setup() {
   Serial.begin(115200);
   
   Wire.begin();
-  Wire.setClock(100000); // estable para el Bend Labs/Nitto
+  Wire.setClock(100000);
   pinMode(LED_BUILTIN, OUTPUT);
 
-  // Inicializar sensor capacitivo Bend Labs / Nitto mediante librería SparkFun
+  // Inicialización del sensor de flexión capacitivo.
   flexOK = beginFlexSensor();
 
+  // Carga la calibración guardada o valores por defecto si no es válida.
   loadCalibration();
   
-  // Inicializar IMU
+  // Inicialización de IMU y filtro Madgwick para estimar orientación.
   imuOK = IMU.begin();
   ahrs.begin(200.0f);
   ahrs.beta = 10.0f;
 
+  // Si BLE no arranca, se deja el LED parpadeando como indicación de error.
   if (!BLE.begin()) {
     while (1) { digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); delay(150); }
   }
@@ -902,6 +917,7 @@ void setup() {
   BLE.setDeviceName("Guante-Cal-V4");
   BLE.setAdvertisedService(gloveService);
 
+  // Registro de todas las características dentro del servicio BLE del guante.
   gloveService.addCharacteristic(rawChar);
   gloveService.addCharacteristic(normChar);
   gloveService.addCharacteristic(angChar);
@@ -918,6 +934,7 @@ void setup() {
   notifyCAL();
   notifyRCAL();
   
+  // Inicialización de la flexión filtrada y de las protecciones asociadas.
   emaAngleFlex = readFlexSensor();
   resetFlexSignalProtection(emaAngleFlex);
   butterFlexPark.reset(emaAngleFlex);
@@ -950,6 +967,7 @@ void setup() {
   uint8_t initRotPct = angleToPercent(emaRollRel);
   rotnChar.writeValue(&initRotPct, 1);
 
+  // El guante queda anunciándose para que la web o el receptor puedan conectarse.
   BLE.advertise();
 }
 
@@ -971,8 +989,10 @@ void loop() {
         lastMs = now;
         
         // =========================================================
-        // 1. LECTURAS CRUDAS BASE
+        // 1. Lectura de sensores
         // =========================================================
+        // Se lee la flexión y se obtiene el Roll de la IMU. La flexión pasa
+        // primero por una etapa de rechazo de picos aislados.
         float rawFlexSensor = readFlexSensor();
         float rawFlex = rejectFlexSpike(rawFlexSensor);
         float rawRoll = emaRollRel; 
@@ -987,59 +1007,43 @@ void loop() {
         }
 
         // =========================================================
-        // 2. PROCESAMIENTO BIOMÉDICO (Filtros según Patología)
+        // 2. Procesamiento según perfil seleccionado
         // =========================================================
-        // Primero cada perfil calcula un Roll objetivo. Después, todos los
-        // perfiles pasan por una etapa común de estabilización dinámica para
-        // reducir oscilaciones cuando la mano está quieta cerca del centro.
+        // Cada perfil modifica la señal de forma distinta. Después, todos pasan
+        // por una estabilización común del giro para mejorar la conducción recta.
         float rollTarget = clampRoll180(rawRoll);
 
         if (calData.pathology == PARKINSON) {
-            // Perfil PARKINSON:
-            // Filtro paso bajo Butterworth digital de 2º orden.
-            // fs = 50 Hz, fc = 2 Hz. Atenúa oscilaciones rápidas
-            // manteniendo la componente lenta del gesto voluntario.
+            // Perfil Parkinson: filtro Butterworth paso bajo para atenuar
+            // oscilaciones rápidas asociadas al temblor.
             emaAngleFlex = butterFlexPark.update(rawFlex);
             rollTarget   = clampRoll180(butterRollPark.update(rawRoll));
 
         } else if (calData.pathology == TOURETTE) {
-            // Perfil TOURETTE:
-            // Se mantiene la dinámica de Madgwick que ya funcionaba bien.
-            // No se aplica un filtro lento continuo: se validan temporalmente
-            // los cambios bruscos extremos para evitar que un tic se convierta
-            // en una orden de giro o en un arranque repentino.
-
-            // Flexión: EMA base. La lógica específica de Tourette sobre la
-            // velocidad se aplica después, ya en porcentaje normalizado.
+            // Perfil Tourette: mantiene una respuesta rápida, pero valida
+            // temporalmente cambios bruscos para evitar aceptar tics instantáneos.
             emaAngleFlex = (EMA_ALPHA_FLEX * rawFlex) + ((1.0f - EMA_ALPHA_FLEX) * emaAngleFlex);
 
-            // Giro: candidato temporal. Solo entra en candidato si supera
-            // TOUR_ROLL_SPIKE_DELTA_DEG. Si persiste TOUR_ROLL_CONFIRM_MS,
-            // se acepta; si vuelve cerca del valor anterior, se descarta.
             rollTarget = clampRoll180(touretteRollGate.update(rawRoll, emaRollRel, now));
 
         } else {
-            // Perfil ESTÁNDAR:
-            // EMA base para la flexión. El Roll se estabiliza después con
-            // el filtro dinámico común, igual que en el resto de perfiles.
+            // Perfil estándar: EMA para flexión y estabilización dinámica para giro.
             emaAngleFlex = (EMA_ALPHA_FLEX * rawFlex) + ((1.0f - EMA_ALPHA_FLEX) * emaAngleFlex);
             rollTarget = clampRoll180(rawRoll);
         }
 
-        // Filtro dinámico común aplicado a TODOS los perfiles.
-        // Mejora la estabilidad cuando la mano está quieta y evita que el
-        // valor de Roll baile continuamente alrededor del centro.
+        // Filtro común de giro. Reduce pequeñas oscilaciones alrededor del centro
+        // sin penalizar movimientos voluntarios amplios.
         emaRollRel = applyRollDynamicStability(rollTarget, emaRollRel);
 
         // =========================================================
-        // 3. ACTUALIZACIÓN BLE Y CÁLCULO DE MOTORES
+        // 3. Normalización, BLE y cálculo de consignas de control
         // =========================================================
         uint8_t pctFlexTarget = flexAngleToPercent(emaAngleFlex);
 
         float pctFlexForControl = (float)pctFlexTarget;
         if (calData.pathology == TOURETTE) {
-          // Bloquea únicamente subidas bruscas de velocidad.
-          // Las bajadas/paradas se aceptan rápido por seguridad.
+          // En Tourette se filtran solo subidas bruscas de velocidad.
           pctFlexForControl = touretteFlexGate.update(
             (float)pctFlexTarget,
             pctFlexCommandLimited,
@@ -1052,8 +1056,7 @@ void loop() {
         static uint32_t lastWebUpdate = 0;
         static uint32_t lastPendingNotify = 0;
 
-        // Tras un comando dejamos un pequeño silencio de telemetría. Evita que Chrome
-        // marque la característica como ocupada justo al pulsar varios botones.
+        // Pausa breve de telemetría tras comandos de la web para favorecer el ACK.
         bool quietAfterCommand = (now - lastCommandMs) < COMMAND_QUIET_MS;
 
         if ((pendingCalNotify || pendingRcalNotify) && (now - lastPendingNotify >= 100)) {
@@ -1070,7 +1073,7 @@ void loop() {
 
         if (!quietAfterCommand && now - lastWebUpdate >= WEB_NOTIFY_MS) {
           lastWebUpdate = now;
-          // Enviar solo si la web está suscrita. Menos tráfico BLE = comandos más fiables.
+          // Envío de telemetría a la web solo si la característica está suscrita.
           uint8_t f4[4]; f32_to_le(emaAngleFlex, f4);
           if (angChar.subscribed()) angChar.writeValue(f4, 4);
 
@@ -1086,9 +1089,10 @@ void loop() {
 
           if (rotnChar.subscribed()) rotnChar.writeValue(&rp, 1);
         }
-        // Lógica Progresiva y Zona Muerta
+
+        // Zona muerta de avance: evita que pequeños porcentajes muevan el robot.
         int flexInput = pctFlexCommand;
-        if (flexInput < 8) flexInput = 0; // Zona muerta (8%)
+        if (flexInput < 8) flexInput = 0;
         
         int velocidadCalc = clampi(map(flexInput, 0, 100, 0, 255), 0, 255);
         
@@ -1096,28 +1100,30 @@ void loop() {
         uint8_t comandoVelocidad = (uint8_t)velocidadCalc;
         uint8_t comandoGiro = rp;
         
+        // Mientras el sistema no esté activado, se fuerza orden de parada.
         if (!systemActive) {
              comandoMovimiento = 0;
              comandoVelocidad = 0;
         }
 
-        // Enviar trama al ESP32
+        // Trama de control enviada al receptor ESP32:
+        // [movimiento, velocidad, giro, estado_calibrado]
         uint8_t statusCalibrado = systemActive ? 1 : 0;
         uint8_t controlPayload[4] = {comandoMovimiento, comandoVelocidad, comandoGiro, statusCalibrado};
-        // Durante la calibración web no hace falta inundar BLE con CTRL a 50 Hz.
-        // Si el receptor se suscribe después, sí recibirá las notificaciones.
         if (ctrlChar.subscribed()) ctrlChar.writeValue(controlPayload, 4);
         
+        // LED de vida del sistema durante conexión BLE.
         digitalWrite(LED_BUILTIN, (now / 500) % 2);
       }
       BLE.poll();
     }
 
-    // Si el usuario sale sin pulsar CAL_DONE, guardamos al perder conexión.
+    // Si se pierde la conexión, se guarda cualquier calibración pendiente.
     saveCalibrationIfDirty("disconnect");
 
   } else {
     BLE.poll();
+    // Parpadeo lento cuando no hay central BLE conectada.
     digitalWrite(LED_BUILTIN, (millis() / 1000) % 2);
   }
 }
